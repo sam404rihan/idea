@@ -48,12 +48,24 @@
                     <!-- Add more rows as needed -->
                 </tbody>
             </table>
+            <div class="mt-4 text-right">
+                <button 
+                    id="finalizeButton" 
+                    class="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition"
+                    onclick="finalizeAttendance()">
+                    Finalize
+                </button>
+            </div>
         </div>
     </div>
 
     <script>
+        let isFinalized = false;
+
+        // Function to toggle attendance status
         function markAttendance(button, status) {
-            // Change the button's text and style based on the new status
+            if (isFinalized) return; // Prevent further changes after finalization
+
             if (status === 'Present') {
                 button.textContent = 'Present';
                 button.className = 'bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition';
@@ -64,6 +76,47 @@
                 button.setAttribute('onclick', "markAttendance(this, 'Present')");
             }
         }
+
+        // Function to finalize attendance
+        function finalizeAttendance() {
+            isFinalized = true;
+            localStorage.setItem('attendanceFinalized', true); // Save finalized state
+
+            const buttons = document.querySelectorAll("table button");
+            buttons.forEach(button => {
+                button.disabled = true;
+                button.classList.add('opacity-50', 'cursor-not-allowed');
+                button.removeAttribute("onclick");
+            });
+
+            const finalizeButton = document.getElementById("finalizeButton");
+            finalizeButton.disabled = true;
+            finalizeButton.classList.add('opacity-50', 'cursor-not-allowed');
+            finalizeButton.textContent = "Finalized";
+        }
+
+        // Function to restore finalized state on page load
+        function restoreFinalizedState() {
+            const finalized = localStorage.getItem('attendanceFinalized');
+            if (finalized === 'true') {
+                isFinalized = true;
+
+                const buttons = document.querySelectorAll("table button");
+                buttons.forEach(button => {
+                    button.disabled = true;
+                    button.classList.add('opacity-50', 'cursor-not-allowed');
+                    button.removeAttribute("onclick");
+                });
+
+                const finalizeButton = document.getElementById("finalizeButton");
+                finalizeButton.disabled = true;
+                finalizeButton.classList.add('opacity-50', 'cursor-not-allowed');
+                finalizeButton.textContent = "Finalized";
+            }
+        }
+
+        // Restore finalized state on page load
+        window.onload = restoreFinalizedState;
     </script>
 </body>
 </html>
