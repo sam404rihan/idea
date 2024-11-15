@@ -66,5 +66,130 @@
         </div>
     </div>
 
+    <script>
+        let isFinalized = false;
+
+        // Function to toggle attendance status
+        function markAttendance(button, status) {
+            if (isFinalized) return; // Prevent further changes after finalization
+
+            if (status === 'Present') {
+                button.textContent = 'Present';
+                button.className = 'bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition';
+                button.setAttribute('onclick', "markAttendance(this, 'Absent')");
+            } else {
+                button.textContent = 'Absent';
+                button.className = 'bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition';
+                button.setAttribute('onclick', "markAttendance(this, 'Present')");
+            }
+        }
+
+        // Function to open the Add Student modal
+        function openAddStudentForm() {
+            if (isFinalized) return; // Prevent adding students after finalization
+            document.getElementById("addStudentModal").classList.remove("hidden");
+        }
+
+        // Function to close the Add Student modal
+        function closeAddStudentForm() {
+            document.getElementById("addStudentModal").classList.add("hidden");
+        }
+
+        // Function to add a new student
+        document.getElementById("addStudentForm").addEventListener("submit", function(event) {
+            event.preventDefault(); // Prevent form submission
+
+            const studentName = document.getElementById("studentName").value.trim();
+            const rollNumber = document.getElementById("rollNumber").value.trim();
+
+            if (!studentName || !rollNumber) {
+                alert("Please fill in all fields.");
+                return;
+            }
+
+            const table = document.getElementById("attendanceTable").getElementsByTagName('tbody')[0];
+
+            // Create a new row
+            const newRow = table.insertRow();
+
+            const rollCell = newRow.insertCell(0);
+            rollCell.textContent = rollNumber;
+
+            const nameCell = newRow.insertCell(1);
+            nameCell.textContent = studentName;
+
+            const dateCell = newRow.insertCell(2);
+            dateCell.textContent = new Date().toISOString().split('T')[0];
+
+            const statusCell = newRow.insertCell(3);
+            statusCell.innerHTML = `
+                <button 
+                    class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition" 
+                    onclick="markAttendance(this, 'Present')">
+                    Absent
+                </button>
+            `;
+
+            const actionCell = newRow.insertCell(4);
+            actionCell.innerHTML = `
+                <button class="text-red-500 hover:text-red-700" onclick="deleteStudent(this)">Delete</button>
+            `;
+
+            closeAddStudentForm(); // Close the modal
+        });
+
+        // Function to delete a student
+        function deleteStudent(button) {
+            if (isFinalized) return; // Prevent deleting students after finalization
+
+            const row = button.parentNode.parentNode;
+            row.parentNode.removeChild(row);
+        }
+
+        // Function to prompt confirmation before finalizing
+        function confirmFinalize() {
+            const userConfirmed = confirm("Are you sure you want to finalize the attendance? Once finalized, changes cannot be made.");
+            if (userConfirmed) {
+                finalizeAttendance();
+            }
+        }
+
+        // Function to finalize attendance
+        function finalizeAttendance() {
+            isFinalized = true;
+            localStorage.setItem('attendanceFinalized', true); // Save finalized state
+
+            const buttons = document.querySelectorAll("table button");
+            buttons.forEach(button => {
+                button.disabled = true;
+                button.classList.add('opacity-50', 'cursor-not-allowed');
+                button.removeAttribute("onclick");
+            });
+
+            const finalizeButton = document.getElementById("finalizeButton");
+            finalizeButton.disabled = true;
+            finalizeButton.classList.add('opacity-50', 'cursor-not-allowed');
+            finalizeButton.textContent = "Finalized";
+        }
+
+        // Function to reset attendance
+        function resetAttendance() {
+            const userConfirmed = confirm("Are you sure you want to reset the attendance? This will clear all changes.");
+            if (userConfirmed) {
+                localStorage.removeItem('attendanceFinalized'); // Clear finalized state
+                location.reload(); // Reload the page to reset
+            }
+        }
+
+        // Restore finalized state on page load
+        function restoreFinalizedState() {
+            const finalized = localStorage.getItem('attendanceFinalized');
+            if (finalized === 'true') {
+                finalizeAttendance();
+            }
+        }
+
+        window.onload = restoreFinalizedState;
+    </script>
 </body>
 </html>
