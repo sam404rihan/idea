@@ -6,12 +6,16 @@ const path = require('path');
 const app = express();
 const port = 3000;
 
-// MongoDB Connection
-mongoose.connect('mongodb://localhost:27017/attendanceDB')
-    .then(() => console.log('Connected to MongoDB'))
-    .catch(error => console.error('Error connecting to MongoDB:', error));
+const uri = 'mongodb://localhost:27017/attendanceDB';
 
-// Middleware
+mongoose.connect(uri)
+    .then(() => {
+        console.log('Connected to MongoDB');
+    })
+    .catch((error) => {
+        console.error('Error connecting to MongoDB:', error);
+    });
+
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -38,18 +42,17 @@ app.get('/students', async (req, res) => {
 app.post('/students', async (req, res) => {
     try {
         const { rollNo, studentName } = req.body;
-        if (!rollNo || !studentName) return res.status(400).json({ error: 'Roll No. and Student Name are required' });
+        const date = new Date().toISOString().split('T')[0];
+        const status = 'Absent';
 
-        const newStudent = new Student({ rollNo, studentName });
+        const newStudent = new Student({ rollNo, studentName, date, status });
         await newStudent.save();
-        res.status(201).json({ message: 'Student added successfully', student: newStudent });
+        res.status(201).json(newStudent);
     } catch (error) {
-        if (error.code === 11000) return res.status(400).json({ error: 'Roll No. already exists' });
-        res.status(500).json({ error: 'Error adding student' });
+        res.status(400).json({ error: 'Error adding student' });
     }
 });
 
-// Start Server
 app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+    console.log(`Server is running on http://localhost:${port}`);
 });
