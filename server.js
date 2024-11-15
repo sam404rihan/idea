@@ -6,51 +6,50 @@ const path = require('path');
 const app = express();
 const port = 3000;
 
-const uri = 'mongodb://localhost:27017/';
+// MongoDB Connection
+mongoose.connect('mongodb://localhost:27017/attendanceDB')
+    .then(() => console.log('Connected to MongoDB'))
+    .catch(error => console.error('Error connecting to MongoDB:', error));
 
-mongoose.connect(uri)
-    .then(() => {
-        console.log('Connected to MongoDB');
-    })
-    .catch((error) => {
-        console.error('Error connecting to MongoDB:', error);
-    });
-
+// Middleware
 app.use(bodyParser.json());
-
-// Serve static files from the "public" directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-const attendanceSchema = new mongoose.Schema({
-    rollNo: Number,
-    studentName: String,
-    date: String,
-    status: { type: String, default: 'Absent' } // Default status
+// Schema and Model
+const studentSchema = new mongoose.Schema({
+    rollNo: { type: Number, required: true, unique: true },
+    studentName: { type: String, required: true },
+    date: { type: String, default: new Date().toISOString().split('T')[0] },
+    status: { type: String, default: 'Absent' }
 });
 
-const Attendance = mongoose.model('Attendance', attendanceSchema);
+const Student = mongoose.model('Student', studentSchema);
 
-// API to fetch all student attendance data
-app.get('/attendance', async (req, res) => {
+// API Endpoints
+app.get('/students', async (req, res) => {
     try {
-        const students = await Attendance.find();
+        const students = await Student.find();
         res.status(200).json(students);
     } catch (error) {
-        res.status(500).send(error);
+        res.status(500).json({ error: 'Error fetching students' });
     }
 });
 
-// API to save attendance
-app.post('/attendance', async (req, res) => {
+app.post('/students', async (req, res) => {
     try {
-        const attendance = new Attendance(req.body);
-        await attendance.save();
-        res.status(201).send(attendance);
+        const { rollNo, studentName } = req.body;
+        if (!rollNo || !studentName) return res.status(400).json({ error: 'Roll No. and Student Name are required' });
+
+        const newStudent = new Student({ rollNo, studentName });
+        await newStudent.save();
+        res.status(201).json({ message: 'Student added successfully', student: newStudent });
     } catch (error) {
-        res.status(400).send(error);
+        if (error.code === 11000) return res.status(400).json({ error: 'Roll No. already exists' });
+        res.status(500).json({ error: 'Error adding student' });
     }
 });
 
+// Start Server
 app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+    console.log(`Server running at http://localhost:${port}`);
 });

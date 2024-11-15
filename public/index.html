@@ -22,30 +22,10 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td class="py-2 px-4 border-b">1</td>
-                        <td class="py-2 px-4 border-b">John Doe</td>
-                        <td class="py-2 px-4 border-b">2023-10-01</td>
-                        <td class="py-2 px-4 border-b">
-                            <button 
-                                class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition" 
-                                onclick="markAttendance(this, 'Present')">
-                                Absent
-                            </button>
-                        </td>
-                        <td class="py-2 px-4 border-b">
-                            <button class="text-red-500 hover:text-red-700" onclick="deleteStudent(this)">Delete</button>
-                        </td>
-                    </tr>
+                    <!-- Rows will be dynamically populated -->
                 </tbody>
             </table>
             <div class="mt-4 flex space-x-4">
-                <button 
-                    id="finalizeButton" 
-                    class="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition"
-                    onclick="confirmFinalize()">
-                    Finalize
-                </button>
                 <button 
                     id="resetButton" 
                     class="bg-red-500 text-white px-6 py-2 rounded hover:bg-red-600 transition"
@@ -83,26 +63,8 @@
     </div>
 
     <script>
-        let isFinalized = false;
-
-        // Function to toggle attendance status
-        function markAttendance(button, status) {
-            if (isFinalized) return; // Prevent further changes after finalization
-
-            if (status === 'Present') {
-                button.textContent = 'Present';
-                button.className = 'bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition';
-                button.setAttribute('onclick', "markAttendance(this, 'Absent')");
-            } else {
-                button.textContent = 'Absent';
-                button.className = 'bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition';
-                button.setAttribute('onclick', "markAttendance(this, 'Present')");
-            }
-        }
-
         // Function to open the Add Student modal
         function openAddStudentForm() {
-            if (isFinalized) return; // Prevent adding students after finalization
             document.getElementById("addStudentModal").classList.remove("hidden");
         }
 
@@ -111,9 +73,14 @@
             document.getElementById("addStudentModal").classList.add("hidden");
         }
 
+        // Function to reset attendance
+        function resetAttendance() {
+            location.reload(); // Reload the page to reset
+        }
+
         // Function to add a new student
-        document.getElementById("addStudentForm").addEventListener("submit", function(event) {
-            event.preventDefault(); // Prevent form submission
+        document.getElementById("addStudentForm").addEventListener("submit", async function(event) {
+            event.preventDefault();
 
             const studentName = document.getElementById("studentName").value.trim();
             const rollNumber = document.getElementById("rollNumber").value.trim();
@@ -123,89 +90,53 @@
                 return;
             }
 
-            const table = document.getElementById("attendanceTable").getElementsByTagName('tbody')[0];
+            try {
+                const response = await fetch('/students', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rollNo: parseInt(rollNumber, 10), studentName })
+                });
 
-            // Create a new row
-            const newRow = table.insertRow();
+                if (response.ok) {
+                    const data = await response.json();
+                    alert('Student added successfully');
 
-            const rollCell = newRow.insertCell(0);
-            rollCell.textContent = rollNumber;
+                    const table = document.getElementById("attendanceTable").getElementsByTagName('tbody')[0];
+                    const newRow = table.insertRow();
 
-            const nameCell = newRow.insertCell(1);
-            nameCell.textContent = studentName;
+                    const rollCell = newRow.insertCell(0);
+                    rollCell.textContent = data.student.rollNo;
 
-            const dateCell = newRow.insertCell(2);
-            dateCell.textContent = new Date().toISOString().split('T')[0];
+                    const nameCell = newRow.insertCell(1);
+                    nameCell.textContent = data.student.studentName;
 
-            const statusCell = newRow.insertCell(3);
-            statusCell.innerHTML = `
-                <button 
-                    class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition" 
-                    onclick="markAttendance(this, 'Present')">
-                    Absent
-                </button>
-            `;
+                    const dateCell = newRow.insertCell(2);
+                    dateCell.textContent = data.student.date;
 
-            const actionCell = newRow.insertCell(4);
-            actionCell.innerHTML = `
-                <button class="text-red-500 hover:text-red-700" onclick="deleteStudent(this)">Delete</button>
-            `;
+                    const statusCell = newRow.insertCell(3);
+                    statusCell.innerHTML = `
+                        <button 
+                            class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition" 
+                            onclick="markAttendance(this, 'Present')">
+                            Absent
+                        </button>
+                    `;
 
-            closeAddStudentForm(); // Close the modal
+                    const actionCell = newRow.insertCell(4);
+                    actionCell.innerHTML = `
+                        <button class="text-red-500 hover:text-red-700" onclick="deleteStudent(this)">Delete</button>
+                    `;
+
+                    closeAddStudentForm(); // Close the modal
+                } else {
+                    const errorData = await response.json();
+                    alert(`Error: ${errorData.error}`);
+                }
+            } catch (error) {
+                console.error('Error adding student:', error);
+                alert('An error occurred while adding the student');
+            }
         });
-
-        // Function to delete a student
-        function deleteStudent(button) {
-            if (isFinalized) return; // Prevent deleting students after finalization
-
-            const row = button.parentNode.parentNode;
-            row.parentNode.removeChild(row);
-        }
-
-        // Function to prompt confirmation before finalizing
-        function confirmFinalize() {
-            const userConfirmed = confirm("Are you sure you want to finalize the attendance? Once finalized, changes cannot be made.");
-            if (userConfirmed) {
-                finalizeAttendance();
-            }
-        }
-
-        // Function to finalize attendance
-        function finalizeAttendance() {
-            isFinalized = true;
-            localStorage.setItem('attendanceFinalized', true); // Save finalized state
-
-            const buttons = document.querySelectorAll("table button");
-            buttons.forEach(button => {
-                button.disabled = true;
-                button.classList.add('opacity-50', 'cursor-not-allowed');
-                button.removeAttribute("onclick");
-            });
-
-            const finalizeButton = document.getElementById("finalizeButton");
-            finalizeButton.disabled = true;
-            finalizeButton.classList.add('opacity-50', 'cursor-not-allowed');
-            finalizeButton.textContent = "Finalized";
-        }
-
-        // Function to reset attendance
-        function resetAttendance() {
-            const userConfirmed = confirm("Are you sure you want to reset the attendance? This will clear all changes.");
-            if (userConfirmed) {
-                localStorage.removeItem('attendanceFinalized'); // Clear finalized state
-                location.reload(); // Reload the page to reset
-            }
-        }
-
-        // Restore finalized state on page load
-        function restoreFinalizedState() {
-            const finalized = localStorage.getItem('attendanceFinalized');
-            if (finalized === 'true') {
-                finalizeAttendance();
-            }
-        }
-
-        window.onload = restoreFinalizedState;
     </script>
 </body>
 </html>
