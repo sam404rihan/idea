@@ -25,6 +25,7 @@
                         <th class="py-2 px-4 border-b">Student Name</th>
                         <th class="py-2 px-4 border-b">Date</th>
                         <th class="py-2 px-4 border-b">Status</th>
+                        <th class="py-2 px-4 border-b">Attendance Percentage</th>
                         <th class="py-2 px-4 border-b">Actions</th>
                     </tr>
                 </thead>
@@ -71,129 +72,144 @@
     </div>
 
     <script>
-        let students = [];  // Holds the list of students
+        let students = [];  // Holds the list of students fetched from the database
         let isFinalized = false;  // Flag to check if the attendance is finalized
+        let attendanceRecords = {};  // Holds attendance data (total and attended) per student
 
-        // Function to fetch students' data (simulated)
-        function fetchStudents() {
-            const tbody = document.getElementById('attendanceTable').querySelector('tbody');
-            tbody.innerHTML = '';  // Clear existing rows
+        // Fetch students' data from the database
+        async function fetchStudents() {
+            try {
+                const response = await fetch('/api/students');
+                if (!response.ok) throw new Error('Failed to fetch data');
+                students = await response.json();
 
-            students.forEach(student => {
-                const row = document.createElement('tr');
+                const tbody = document.getElementById('attendanceTable').querySelector('tbody');
+                tbody.innerHTML = '';  // Clear existing rows
 
-                row.innerHTML = `
-                    <td class="py-2 px-4 border-b">${student.rollNo}</td>
-                    <td class="py-2 px-4 border-b">${student.studentName}</td>
-                    <td class="py-2 px-4 border-b">${student.date}</td>
-                    <td class="py-2 px-4 border-b">
-                        <button 
-                            class="bg-${student.status === 'Present' ? 'green' : 'red'}-500 text-white px-4 py-2 rounded hover:bg-${student.status === 'Present' ? 'green' : 'red'}-600 transition"
-                            onclick="toggleAttendance(this, '${student.status === 'Present' ? 'Absent' : 'Present'}')">
-                            ${student.status}
-                        </button>
-                    </td>
-                    <td class="py-2 px-4 border-b">
-                        <button class="text-red-500 hover:text-red-700" onclick="deleteStudent(this)">Delete</button>
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
+                students.forEach(student => {
+                    // Calculate attendance percentage
+                    const totalClasses = attendanceRecords[student.rollNo]?.total || 0;
+                    const attendedClasses = attendanceRecords[student.rollNo]?.attended || 0;
+                    const attendancePercentage = totalClasses > 0 ? ((attendedClasses / totalClasses) * 100).toFixed(2) : '0.00';
+
+                    const row = document.createElement('tr');
+
+                    row.innerHTML = `
+                        <td class="py-2 px-4 border-b">${student.rollNo}</td>
+                        <td class="py-2 px-4 border-b">${student.studentName}</td>
+                        <td class="py-2 px-4 border-b">${new Date(student.date).toLocaleDateString()}</td>
+                        <td class="py-2 px-4 border-b">
+                            <button 
+                                class="bg-${student.status === 'Present' ? 'green' : 'red'}-500 text-white px-4 py-2 rounded hover:bg-${student.status === 'Present' ? 'green' : 'red'}-600 transition"
+                                onclick="toggleAttendance(this, '${student.status === 'Present' ? 'Absent' : 'Present'}')">
+                                ${student.status}
+                            </button>
+                        </td>
+                        <td class="py-2 px-4 border-b">${attendancePercentage}%</td>
+                        <td class="py-2 px-4 border-b">
+                            <button class="text-red-500 hover:text-red-700" onclick="deleteStudent(${student.rollNo})">Delete</button>
+                        </td>
+                    `;
+
+                    tbody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error fetching students:', error);
+            }
         }
 
-        // Add student to the list (simulated)
+        // Add new student to the database
         async function addStudent(event) {
             event.preventDefault();
-            const studentName = document.getElementById('studentName').value.trim();
-            const rollNumber = document.getElementById('rollNumber').value.trim();
 
-            if (!studentName || !rollNumber) {
-                alert('Please fill in all fields.');
-                return;
+            const studentName = document.getElementById('studentName').value;
+            const rollNo = document.getElementById('rollNumber').value;
+
+            try {
+                const response = await fetch('/api/students', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ studentName, rollNo })
+                });
+
+                if (!response.ok) throw new Error('Failed to add student');
+                fetchStudents();  // Refresh the table
+                closeAddStudentForm();  // Close the modal
+            } catch (error) {
+                console.error('Error adding student:', error);
             }
-
-            const newStudent = {
-                rollNo: rollNumber,
-                studentName: studentName,
-                date: new Date().toLocaleDateString(),
-                status: 'Absent'
-            };
-
-            students.push(newStudent);
-            fetchStudents();
-            closeAddStudentForm();
         }
 
-        // Open the Add Student modal
-        function openAddStudentForm() {
-            document.getElementById('addStudentModal').classList.remove('hidden');
-        }
-
-        // Close the Add Student modal
-        function closeAddStudentForm() {
-            document.getElementById('addStudentModal').classList.add('hidden');
-        }
-
-        // Toggle the attendance status between Present/Absent
-        function toggleAttendance(button, newStatus) {
+        // Toggle attendance status
+        async function toggleAttendance(button, newStatus) {
             if (isFinalized) {
                 alert('Attendance is finalized. Cannot change status.');
                 return;
             }
 
-            button.textContent = newStatus;
-            button.className = `bg-${newStatus === 'Present' ? 'green' : 'red'}-500 text-white px-4 py-2 rounded hover:bg-${newStatus === 'Present' ? 'green' : 'red'}-600 transition`;
-        }
-
-        // Delete a student from the list
-        function deleteStudent(button) {
-            if (isFinalized) {
-                alert('Attendance is finalized. Cannot delete student.');
-                return;
-            }
-
             const row = button.closest('tr');
-            const rollNo = row.querySelector('td').textContent;  // Assuming roll number is in the first column
-            students = students.filter(student => student.rollNo !== rollNo);
-            fetchStudents();
+            const rollNo = row.querySelector('td').textContent;
+
+            try {
+                const response = await fetch(`/api/students/${rollNo}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })  // Send the new status
+                });
+
+                if (!response.ok) throw new Error('Failed to update attendance');
+                fetchStudents(); // Refresh the table
+            } catch (error) {
+                console.error('Error updating attendance:', error);
+                alert('Failed to update attendance. Please try again.');
+            }
         }
 
-        // Finalize the attendance (locks the attendance)
+        // Finalize attendance (disable changes)
         function finalizeAttendance() {
-            if (isFinalized) {
-                alert('Attendance has already been finalized.');
-                return;
-            }
-
             isFinalized = true;
+            document.getElementById('finalizeButton').disabled = true;
+            document.getElementById('resetButton').disabled = false;
             alert('Attendance has been finalized.');
-            // Optionally, disable all buttons once finalized
-            const finalizeButton = document.getElementById('finalizeButton');
-            finalizeButton.disabled = true;
-            const resetButton = document.getElementById('resetButton');
-            resetButton.disabled = true;
         }
 
-        // Reset the attendance (sets all attendance to "Absent")
+        // Reset attendance (re-enable changes)
         function resetAttendance() {
-            if (isFinalized) {
-                alert('Attendance is finalized. Cannot reset.');
-                return;
-            }
-
-            students.forEach(student => {
-                student.status = 'Absent';
-            });
-
-            fetchStudents();
+            isFinalized = false;
+            document.getElementById('finalizeButton').disabled = false;
+            document.getElementById('resetButton').disabled = true;
+            alert('Attendance has been reset.');
         }
 
-        // Add event listener to the form to handle student addition
+        // Open the "Add Student" form
+        function openAddStudentForm() {
+            document.getElementById('addStudentModal').classList.remove('hidden');
+        }
+
+        // Close the "Add Student" form
+        function closeAddStudentForm() {
+            document.getElementById('addStudentModal').classList.add('hidden');
+        }
+
+        // Delete a student
+        async function deleteStudent(rollNo) {
+            try {
+                const response = await fetch(`/api/students/${rollNo}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) throw new Error('Failed to delete student');
+                fetchStudents();  // Refresh the table
+            } catch (error) {
+                console.error('Error deleting student:', error);
+            }
+        }
+
+        // Initialize the app
+        window.onload = fetchStudents;
+
+        // Add the student form submit event
         document.getElementById('addStudentForm').addEventListener('submit', addStudent);
-
-        // Initial fetch of students
-        fetchStudents();
-
     </script>
 </body>
 </html>
