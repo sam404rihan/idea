@@ -6,16 +6,12 @@ const path = require('path');
 const app = express();
 const port = 3000;
 
-const uri = 'mongodb://localhost:27017/attendanceDB';
+// MongoDB connection
+mongoose.connect('mongodb://localhost:27017/school_management', { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log('Connected to MongoDB'))
+    .catch(err => console.error('Error connecting to MongoDB:', err));
 
-mongoose.connect(uri)
-    .then(() => {
-        console.log('Connected to MongoDB');
-    })
-    .catch((error) => {
-        console.error('Error connecting to MongoDB:', error);
-    });
-
+// Middleware
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -29,30 +25,31 @@ const studentSchema = new mongoose.Schema({
 
 const Student = mongoose.model('Student', studentSchema);
 
-// API Endpoints
+// Fetch all students
 app.get('/students', async (req, res) => {
     try {
         const students = await Student.find();
-        res.status(200).json(students);
-    } catch (error) {
-        res.status(500).json({ error: 'Error fetching students' });
+        res.json(students);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching students.' });
     }
 });
 
+// Add a new student
 app.post('/students', async (req, res) => {
     try {
         const { rollNo, studentName } = req.body;
         const date = new Date().toISOString().split('T')[0];
-        const status = 'Absent';
+        const newStudent = new Student({ rollNo, studentName, date });
 
-        const newStudent = new Student({ rollNo, studentName, date, status });
         await newStudent.save();
-        res.status(201).json(newStudent);
-    } catch (error) {
-        res.status(400).json({ error: 'Error adding student' });
+        res.status(201).json({ message: 'Student added successfully', student: newStudent });
+    } catch (err) {
+        res.status(400).json({ message: 'Error adding student.', error: err });
     }
 });
 
+// Start the server
 app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+    console.log(`Server running at http://localhost:${port}`);
 });
